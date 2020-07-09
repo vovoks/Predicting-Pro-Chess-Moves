@@ -1,5 +1,10 @@
-filename = 'PGNs/whitegames2600.pgn'
-folder = 'trainingdata'
+import pathlib
+from os.path import join
+
+absolute_path = pathlib.Path().absolute()
+
+filename = join(absolute_path, 'PGNs', 'whitegames2600.pgn')
+folder = join(absolute_path, 'trainingdata')
 
 
 def main(max_games_per_file):
@@ -33,7 +38,7 @@ def main(max_games_per_file):
                     data_split.append(line)
                 batch_number += 1
                 total = ''.join(data_split)
-                with open(folder + 'trainingbatch' + str(batch_number) + '.txt', 'w+') as newfile:
+                with open(join(folder, 'trainingbatch' + str(batch_number) + '.txt'), 'w+') as newfile:
                     newfile.write(total)
                     print('batch number {} saved'.format(batch_number))
                 data_split = [line]

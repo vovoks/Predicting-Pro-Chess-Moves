@@ -8,6 +8,9 @@ import os
 from multiprocessing import Pool, Manager
 from itertools import product
 import h5py
+import pathlib
+from os.path import join
+absolute_path = pathlib.Path().absolute()
 
 '''final training data will have the format:
          Network 1
@@ -90,7 +93,7 @@ def position_list(self):
 
         if not self.occupied & mask:
             builder_append(0)
-        elif bool(self.occupied_co[WHITE] & mask):
+        elif bool(self.occupied_co[chess.WHITE] & mask):
             if self.pawns & mask:
                 builder_append(7)
             elif self.knights & mask:
@@ -152,6 +155,7 @@ def piece_moved(position1, position2):
                      is at the end of the turn.
     step 3: Returns two ints with the square moved from, and square moved to
     '''
+    moved_from, moved_to = 0, 0
     affected_squares = []
     for i in range(64):  # Step 1
         if position1[i] != position2[i]:
@@ -182,17 +186,17 @@ def piece_moved(position1, position2):
 
 
 # ------------ test for full file ------------
-h5_folder = 'testtrainingfiles'
+h5_folder = join(absolute_path, 'testtrainingfiles')
 Bulk_data = 'test_Data.h5'
 
 
-def parse_file(data_folder, text_file):
+def parse_file(text_file):
     '''file parser
     Step 1: loops through 1 PGN (portable game notation) file game by game.
     Step 2: Accounts for edge cases where play was stopped in the middle of a move
             due to disconnection during the game
     Step 3: Adds the training data to an h5 file'''
-    pgn = open(os.path.join(data_folder, text_file))
+    pgn = open(text_file)
     counter = 0
     startfile = time()
     filename = text_file.split('.')[0]
@@ -203,7 +207,11 @@ def parse_file(data_folder, text_file):
         if game is None:
             break
         counter += 1
-        board = game.board()  # set the game board
+        #print(game.__str__())
+        try:
+            board = game.board()  # set the game board
+        except:
+            break
         first = True
 
         for move in game.main_line():
@@ -234,7 +242,7 @@ def parse_file(data_folder, text_file):
         moved_to_one_hot = np.zeros((moved_to.size, 64))
         moved_to_one_hot[np.arange(moved_to.size), moved_to] = 1
 
-        h5f = h5py.File(h5_folder + '/' + filename +'.h5', 'w')
+        h5f = h5py.File(join(h5_folder, filename.split("""\\""")[-1] + '.h5'), 'w')
         h5f.create_dataset('input_position', data=position)
         h5f.create_dataset('moved_from', data=moved_from_one_hot)
         h5f.create_dataset('moved_to', data=moved_to_one_hot)
@@ -258,7 +266,7 @@ def combine_h5s():
     first = True
     for i, file in enumerate(saved_h5s):
         if first:
-            add_file = h5py.File(h5_folder + '/' + file, 'r')
+            add_file = h5py.File(join(h5_folder, file), 'r')
             position = add_file['input_position']
             moved_from = add_file['moved_from']
             moved_to = add_file['moved_to']
@@ -269,7 +277,7 @@ def combine_h5s():
             h5f.close
             first = False
         else:
-            add_file = h5py.File(h5_folder + '/' + file, 'r')
+            add_file = h5py.File(join(h5_folder, file), 'r')
             X = add_file['input_position']
             moved_from = add_file['moved_from']
             moved_to = add_file['moved_to']
@@ -295,13 +303,13 @@ def main(data_folder):
     datasplitter.py is responsible for breaking up the original PGN.
     Uses multiprocessing.
     '''
-    for i, file in os.listdir(data_folder):
-        df = pd.DataFrame(parse_file(file))
-        df.to_hdf('trainingdata.h5', key='df', mode='a')
+    for i, file in enumerate(os.listdir(data_folder)):
+        df = pd.DataFrame(parse_file(join(data_folder, file)))
+        df.to_hdf(join(absolute_path, 'trainingdata.h5'), key='df', mode='a')
         print(i+1)
 
     pool = Pool(8)
-    for i, _ in enumerate(pool.imap(parse_file, os.listdir(data_folder))):
+    for i, _ in enumerate(pool.imap(parse_file, [join(data_folder, file) for file in os.listdir(data_folder)])):
         print('file {} converted to hdf5'.format(i+1))
 
     combine_h5s()
@@ -309,5 +317,5 @@ def main(data_folder):
 
 if __name__ == '__main__':
     starttime = time()
-    main(data_folder='trainingdata')
+    main(data_folder=join(absolute_path, 'trainingdata'))
     print('total time taken: ', time() - starttime)
